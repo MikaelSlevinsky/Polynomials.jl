@@ -3,35 +3,51 @@
 module Polynomials
 #todo: sparse polynomials?
 
+using Compat
+
 export Poly, polyval, polyint, polyder, poly, roots
-export Pade, padeval
+export Pade, padeval, degree
 
 import Base: length, endof, getindex, setindex!, copy, zero, one, convert
 import Base: show, print, *, /, //, -, +, ==, divrem, rem, eltype
+import Base: promote_rule
+if VERSION >= v"0.4"
+    import Base.call
+end
 
 eps{T}(::Type{T}) = zero(T)
-eps{F<:FloatingPoint}(x::Type{F}) = Base.eps(F)
+eps{F<:AbstractFloat}(x::Type{F}) = Base.eps(F)
 eps{T}(x::Type{Complex{T}}) = eps(T)
 
 immutable Poly{T<:Number}
     a::Vector{T}
     var::Symbol
     function Poly(a::Vector{T}, var)
-        new(a, symbol(var))
+        # if a == [] we replace it with a = [0]
+        if length(a) == 0
+            return new(zeros(T,1), symbol(var))
+        else
+            # determine the last nonzero element and truncate a accordingly
+            a_last = max(1,findlast( p->(abs(p) > 2*eps(T)), a))
+            new(a[1:a_last], symbol(var))
+        end
     end
 end
 
-Poly{T<:Number}(a::Vector{T}, var::Union(String,Symbol,Char)=:x) = Poly{T}(a, var)
+@compat Poly{T<:Number}(a::Vector{T}, var::Union{AbstractString,Symbol,Char}=:x) = Poly{T}(a, var)
 
 convert{T}(::Type{Poly{T}}, p::Poly) = Poly(convert(Vector{T}, p.a), p.var)
+convert{T, S<:Number}(::Type{Poly{T}}, x::S) = Poly(promote_type(T, S)[x])
+convert{T, S<:Number,n}(::Type{Poly{T}}, x::Array{S,n}) = map(el->convert(Poly{promote_type(T,S)},el),x)
 promote_rule{T, S}(::Type{Poly{T}}, ::Type{Poly{S}}) = Poly{promote_type(T, S)}
 eltype{T}(::Poly{T}) = T
 
 length(p::Poly) = length(p.a)
+degree(p::Poly) = length(p)-1
 endof(p::Poly) = length(p) - 1
 
 getindex{T}(p::Poly{T}, i) = (i+1 > length(p.a) ? zero(T) : p.a[i+1])
-function setindex!(p::Poly, v, i) 
+function setindex!(p::Poly, v, i)
     n = length(p.a)
     if n < i+1
         resize!(p.a,i+1)
@@ -43,9 +59,9 @@ end
 
 copy(p::Poly) = Poly(copy(p.a), p.var)
 
-zero{T}(p::Poly{T}) = zero(Poly{T})
+zero{T}(p::Poly{T}) = Poly([zero(T)], p.var)
 zero{T}(::Type{Poly{T}}) = Poly(T[])
-one{T}(p::Poly{T}) = one(Poly{T})
+one{T}(p::Poly{T}) = Poly([one(T)], p.var)
 one{T}(::Type{Poly{T}}) = Poly([one(T)])
 
 function show(io::IO, p::Poly)
@@ -91,10 +107,10 @@ function printterm{T<:Complex}(io::IO,p::Poly{T},j,first)
     end
 
     # We show a negative sign either for any complex number with negative
-    # real part (and then negate the immaginary part) of for complex 
+    # real part (and then negate the immaginary part) of for complex
     # numbers that are pure imaginary with negative imaginary part
 
-    neg = ((abs_repj > 2*eps(T)) && real(pj) < 0) || 
+    neg = ((abs_repj > 2*eps(T)) && real(pj) < 0) ||
             ((abs_impj > 2*eps(T)) && imag(pj) < 0)
 
     if first
@@ -130,16 +146,16 @@ function print{T}(io::IO, p::Poly{T})
     printed_anything || print(io,zero(T))
 end
 
-*{T<:Number,S}(c::T, p::Poly{S}) = Poly(c * p.a)
-*{T<:Number,S}(p::Poly{S}, c::T) = Poly(p.a * c)
-/(p::Poly, c::Number) = Poly(p.a / c)
--(p::Poly) = Poly(-p.a)
+*{T<:Number,S}(c::T, p::Poly{S}) = Poly(c * p.a, p.var)
+*{T<:Number,S}(p::Poly{S}, c::T) = Poly(p.a * c, p.var)
+/(p::Poly, c::Number) = Poly(p.a / c, p.var)
+-(p::Poly) = Poly(-p.a, p.var)
 
 -(p::Poly, c::Number) = +(p, -c)
 +(c::Number, p::Poly) = +(p, c)
 function +(p::Poly, c::Number)
     if length(p) < 1
-        return Poly([c,])
+        return Poly([c,], p.var)
     else
         p2 = copy(p)
         p2.a[1] += c;
@@ -148,7 +164,7 @@ function +(p::Poly, c::Number)
 end
 function -{T}(c::Number, p::Poly{T})
     if length(p) < 1
-        return Poly(T[c,])
+        return Poly(T[c,], p.var)
     else
         p2 = -p;
         p2.a[1] += c;
@@ -160,13 +176,13 @@ function +{T,S}(p1::Poly{T}, p2::Poly{S})
     if p1.var != p2.var
         error("Polynomials must have same variable")
     end
-    Poly([p1[i] + p2[i] for i = 0:max(length(p1),length(p2))])
+    Poly([p1[i] + p2[i] for i = 0:max(length(p1),length(p2))], p1.var)
 end
 function -{T,S}(p1::Poly{T}, p2::Poly{S})
     if p1.var != p2.var
         error("Polynomials must have same variable")
     end
-    Poly([p1[i] - p2[i] for i = 0:max(length(p1),length(p2))])
+    Poly([p1[i] - p2[i] for i = 0:max(length(p1),length(p2))], p1.var)
 end
 
 
@@ -175,53 +191,48 @@ function *{T,S}(p1::Poly{T}, p2::Poly{S})
         error("Polynomials must have same variable")
     end
     R = promote_type(T,S)
-    n = degree(p1)
-    m = degree(p2)
-    a = Poly(zeros(R,m+n+1))
+    n = length(p1)-1
+    m = length(p2)-1
+    a = zeros(R,m+n+1)
+
     for i = 0:n
         for j = 0:m
-            a[i+j] += p1[i] * p2[j]
+            a[i+j+1] += p1[i] * p2[j]
         end
     end
-    a
-end
-
-function degree{T}(p::Poly{T})
-    for i = length(p):-1:0
-        if abs(p[i]) > 2*eps(T)
-            return i
-        end
-    end
-    return 0
+    Poly(a,p1.var)
 end
 
 function divrem{T, S}(num::Poly{T}, den::Poly{S})
     if num.var != den.var
         error("Polynomials must have same variable")
     end
-    m = degree(den)
+    m = length(den)-1
     if m == 0 && den[0] == 0
         throw(DivideError())
     end
     R = typeof(one(T)/one(S))
-    n = degree(num)
+    n = length(num)-1
     deg = n-m+1
     if deg <= 0
         return convert(Poly{R}, zero(num)), convert(Poly{R}, num)
     end
-    # We will still modify q,r, but already wrap it in a
-    # polynomial, so the indexing below is more natural
-    pQ = Poly(zeros(R, deg), num.var)
-    pR = Poly(zeros(R, n+1), num.var)
-    pR.a[:] = num.a[1:(n+1)]
+
+    aQ = zeros(R, deg)
+    # aR = deepcopy(num.a)
+    @show num.a
+    aR = R[ num.a[i] for i = 1:n+1 ]
     for i = n:-1:m
-        quot = pR[i] / den[m]
-        pQ[i-m] = quot
+        quot = aR[i+1] / den[m]
+        aQ[i-m+1] = quot
         for j = 0:m
             elem = den[j]*quot
-            pR[i-(m-j)] -= elem
+            aR[i-(m-j)+1] -= elem
         end
     end
+    pQ = Poly(aQ, num.var)
+    pR = Poly(aR, num.var)
+
     return pQ, pR
 end
 /(num::Poly, den::Poly) = divrem(num, den)[1]
@@ -231,24 +242,19 @@ function ==(p1::Poly, p2::Poly)
     if p1.var != p2.var
         return false
     else
-        for i = 1:max(length(p1),length(p2))
-            if p1[i] != p2[i]
-                return false    
-            end
-        end
-        return true
+        return p1.a == p2.a
     end
 end
 
-function polyval{T}(p::Poly{T}, x::Number)
-    R = promote_type(T, typeof(x))
+function polyval{T,S}(p::Poly{T}, x::S)
+    R = promote_type(T,S)
     lenp = length(p)
     if lenp == 0
         return zero(R)
     else
         y = convert(R, p[end])
         for i = (endof(p)-1):-1:0
-            y = p[i] + x.*y
+            y = p[i] + x*y
         end
         return y
     end
@@ -256,16 +262,19 @@ end
 
 polyval(p::Poly, v::AbstractVector) = map(x->polyval(p, x), v)
 
+if VERSION >= v"0.4"
+    call(p::Poly, x) = polyval(p, x)
+end
+
 function polyint{T}(p::Poly{T}, k::Number=0)
     n = length(p)
     R = typeof(one(T)/1)
     a2 = Array(R, n+1)
     a2[1] = k
-    p2 = Poly(a2, p.var)
     for i = 1:n
-        p2[i] = p[i-1] / i
+        a2[i+1] = p[i-1] / i
     end
-    p2
+    return Poly(a2, p.var)
 end
 
 function polyder{T}(p::Poly{T}, order::Int=1)
@@ -277,11 +286,11 @@ function polyder{T}(p::Poly{T}, order::Int=1)
     elseif order == 0
         return p
     else
-        p2 = Poly(Array(T, n-order), p.var)
+        a2 = Array(T, n-order)
         for i = order:n-1
-            p2[i-order] = p[i] * prod((i-order+1):i)
+            a2[i-order+1] = p[i] * prod((i-order+1):i)
         end
-        return p2
+        return Poly(a2, p.var)
     end
 end
 
@@ -301,7 +310,7 @@ function poly{T}(r::AbstractVector{T}, var=:x)
     return Poly(reverse(c), var)
 end
 poly(A::Matrix, var=:x) = poly(eig(A)[1], var)
-poly(A::Matrix, var::String) = poly(eig(A)[1], symbol(var))
+poly(A::Matrix, var::AbstractString) = poly(eig(A)[1], symbol(var))
 poly(A::Matrix, var::Char) = poly(eig(A)[1], symbol(var))
 
 roots{T}(p::Poly{Rational{T}}) = roots(convert(Poly{promote_type(T, Float64)}, p))

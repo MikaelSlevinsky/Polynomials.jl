@@ -1,8 +1,8 @@
-# Polynomial
+# Polynomials
 
 Basic arithmetic, integration, differentiation, evaluation, and root finding over dense univariate polynomials.
 
-[![Build Status](https://travis-ci.org/vtjnash/Polynomial.jl.png?branch=master)](https://travis-ci.org/vtjnash/Polynomial.jl)
+[![Build Status](https://travis-ci.org/Keno/Polynomials.jl.png?branch=master)](https://travis-ci.org/Keno/Polynomials.jl)
 
 #### Poly{T<:Number}(a::Vector)
 Construct a polynomial from its coefficients, lowest order first.
@@ -52,6 +52,18 @@ Poly(0.5 - 0.5x^2)
 ```
 
 Note that operations involving polynomials with different variables will error.
+
+To get the degree of the polynomial use `degree` method
+```
+julia> degree(p)
+1
+
+julia> degree(p^2)
+2
+
+julia> degree(p-p)
+0
+```
 
 ```julia
 julia> p = Poly([1, 2, 3], :x)
