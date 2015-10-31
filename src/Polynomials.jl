@@ -6,7 +6,7 @@ module Polynomials
 using Compat
 
 export Poly, polyval, polyint, polyder, poly, roots
-export Pade, padeval, degree
+export RatPoly, rateval, degree
 
 import Base: length, endof, getindex, setindex!, copy, zero, one, convert
 import Base: show, print, *, /, //, -, +, ==, divrem, rem, eltype
@@ -55,6 +55,10 @@ function setindex!(p::Poly, v, i)
     end
     p.a[i+1] = v
     v
+end
+
+macro assert_variable(p,q)
+    return :($p.var == $q.var ? nothing : error("Polynomials must have the same variable."))
 end
 
 copy(p::Poly) = Poly(copy(p.a), p.var)
@@ -173,23 +177,17 @@ function -{T}(c::Number, p::Poly{T})
 end
 
 function +{T,S}(p1::Poly{T}, p2::Poly{S})
-    if p1.var != p2.var
-        error("Polynomials must have same variable")
-    end
+    @assert_variable(p1,p2)
     Poly([p1[i] + p2[i] for i = 0:max(length(p1),length(p2))], p1.var)
 end
 function -{T,S}(p1::Poly{T}, p2::Poly{S})
-    if p1.var != p2.var
-        error("Polynomials must have same variable")
-    end
+    @assert_variable(p1,p2)
     Poly([p1[i] - p2[i] for i = 0:max(length(p1),length(p2))], p1.var)
 end
 
 
 function *{T,S}(p1::Poly{T}, p2::Poly{S})
-    if p1.var != p2.var
-        error("Polynomials must have same variable")
-    end
+    @assert_variable(p1,p2)
     R = promote_type(T,S)
     n = length(p1)-1
     m = length(p2)-1
@@ -204,9 +202,7 @@ function *{T,S}(p1::Poly{T}, p2::Poly{S})
 end
 
 function divrem{T, S}(num::Poly{T}, den::Poly{S})
-    if num.var != den.var
-        error("Polynomials must have same variable")
-    end
+    @assert_variable(num, den)
     m = length(den)-1
     if m == 0 && den[0] == 0
         throw(DivideError())
@@ -219,9 +215,7 @@ function divrem{T, S}(num::Poly{T}, den::Poly{S})
     end
 
     aQ = zeros(R, deg)
-    # aR = deepcopy(num.a)
-    @show num.a
-    aR = R[ num.a[i] for i = 1:n+1 ]
+    aR = deepcopy(num.a)
     for i = n:-1:m
         quot = aR[i+1] / den[m]
         aQ[i-m+1] = quot
@@ -235,7 +229,7 @@ function divrem{T, S}(num::Poly{T}, den::Poly{S})
 
     return pQ, pR
 end
-/(num::Poly, den::Poly) = divrem(num, den)[1]
+div(num::Poly, den::Poly) = divrem(num, den)[1]
 rem(num::Poly, den::Poly) = divrem(num, den)[2]
 
 function ==(p1::Poly, p2::Poly)
@@ -354,7 +348,7 @@ end
 function gcd{T, S}(a::Poly{T}, b::Poly{S})
     #Finds the Greatest Common Denominator of two polynomials recursively using
     #Euclid's algorithm: http://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Euclid.27s_algorithm
-    if all(abs(b.a).<=2*eps(S))
+    if all(abs(b.a).≤2eps(S))
         return a
     else
         s, r = divrem(a, b)
@@ -362,6 +356,6 @@ function gcd{T, S}(a::Poly{T}, b::Poly{S})
     end
 end
 
-include("pade.jl")
+include("rational.jl")
 
 end # module Poly
