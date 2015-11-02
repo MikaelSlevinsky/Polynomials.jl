@@ -7,41 +7,49 @@ immutable RatPoly{T<:Number}
         d = gcd(p, q)
         pd = div(p, d)
         qd = div(q, d)
-        qd0 = qd[0]
-        if abs(qd0) ≤ eps(T)
+        n = findfirst(qd)
+        qdn = qd[n]
+        if abs(qdn) ≤ 2eps(T)
             new(pd, qd, p.var)
         else
-            new(pd/qd0, qd/qd0, p.var)
+            new(pd/qdn, qd/qdn, p.var)
         end
     end
 end
 RatPoly{T<:Number}(p::Poly{T}, q::Poly{T}) = RatPoly{T}(p,q)
+RatPoly{T<:Integer}(p::Poly{T}, q::Poly{T}) = RatPoly{Rational{T}}(convert(Poly{Rational{T}},p),convert(Poly{Rational{T}},q))
 
 eltype{T}(::RatPoly{T}) = T
 
 RatPoly{T<:Number,S<:Number}(p::Poly{T}, q::Poly{S}) = RatPoly(promote(p,q)...)
 
 
-Base.convert{S,T<:Number}(::Type{RatPoly{S}},P::T) = convert(Poly{S},P)/convert(Poly{S},one(P))
-Base.convert{S,T}(::Type{RatPoly{S}},P::Poly{T}) = convert(Poly{S},P)/convert(Poly{S},one(P))
+convert{S,T<:Number}(::Type{RatPoly{S}},P::T) = convert(Poly{S},P)/convert(Poly{S},one(P))
+convert{S,T}(::Type{RatPoly{S}},P::Poly{T}) = convert(Poly{S},P)/convert(Poly{S},one(P))
+convert{S<:Integer,T<:Integer}(::Type{RatPoly{S}},P::T) = convert(Poly{S},P)//convert(Poly{S},one(P))
+convert{S<:Integer,T<:Integer}(::Type{RatPoly{S}},P::Poly{T}) = convert(Poly{S},P)//convert(Poly{S},one(P))
 
-Base.promote_rule{S,T<:Number}(::Type{RatPoly{S}},::Type{T}) = RatPoly{promote_type(S,T)}
-Base.promote_rule{S,T}(::Type{RatPoly{S}},::Type{Poly{T}}) = RatPoly{promote_type(S,T)}
+promote_rule{S,T<:Number}(::Type{RatPoly{S}},::Type{T}) = RatPoly{promote_type(S,T)}
+promote_rule{S,T}(::Type{RatPoly{S}},::Type{Poly{T}}) = RatPoly{promote_type(S,T)}
 
 
-rateval(r::RatPoly,x) = polyval(r.p,x)./polyval(r.q,x)
+ratpolyval(r::RatPoly,x) = polyval(r.p,x)./polyval(r.q,x)
+ratpolyval{T<:Union{Rational,Integer},S<:Union{Rational,Integer}}(r::RatPoly{T},x::S) = polyval(r.p,x).//polyval(r.q,x)
 
-Base.call(r::RatPoly,x) = rateval(r,x)
+if VERSION >= v"0.4"
+    call(r::RatPoly, x) = ratpolyval(r, x)
+end
 
 copy(r::RatPoly) = RatPoly(copy(r.p), copy(r.q))
 
-zero(r::RatPoly) = zero(r.p)/one(r.q)
-zero{T}(::Type{RatPoly{T}}) = zero(Poly{T})/one(Poly{T})
-one(r::RatPoly) = one(r.p)/one(r.q)
-one{T}(::Type{RatPoly{T}}) = one(Poly{T})/one(Poly{T})
+zero(r::RatPoly) = zero(r.p)//one(r.q)
+zero{T}(::Type{RatPoly{T}}) = zero(Poly{T})//one(Poly{T})
+one(r::RatPoly) = one(r.p)//one(r.q)
+one{T}(::Type{RatPoly{T}}) = one(Poly{T})//one(Poly{T})
 
 
-/(p::Poly, q::Poly) = RatPoly(p, q)
+//(p::Poly, q::Poly) = RatPoly(p, q)
+//(R1::RatPoly, R2::RatPoly) = R1/R2
 
 +(R::RatPoly) = RatPoly(+R.p,R.q)
 -(R::RatPoly) = RatPoly(-R.p,R.q)
@@ -50,17 +58,12 @@ one{T}(::Type{RatPoly{T}}) = one(Poly{T})/one(Poly{T})
 *(R1::RatPoly,R2::RatPoly) = RatPoly(R1.p*R2.p,R1.q*R2.q)
 /(R1::RatPoly,R2::RatPoly) = RatPoly(R1.p*R2.q,R1.q*R2.p)
 
-+(R::RatPoly,P::Union{Poly,Number}) = +(promote(R,P)...)
-+(P::Union{Poly,Number},R::RatPoly) = +(promote(P,R)...)
--(R::RatPoly,P::Union{Poly,Number}) = -(promote(R,P)...)
--(P::Union{Poly,Number},R::RatPoly) = -(promote(P,R)...)
-
-*(R::RatPoly,P::Union{Poly,Number}) = *(promote(R,P)...)
-*(P::Union{Poly,Number},R::RatPoly) = *(promote(P,R)...)
-/(R::RatPoly,P::Union{Poly,Number}) = /(promote(R,P)...)
-/(P::Union{Poly,Number},R::RatPoly) = /(promote(P,R)...)
-
-
+for op in (:+,:-,:*,:/,://)
+    @eval begin
+        $op(R::RatPoly, P::Union{Poly,Number}) = $op(promote(R,P)...)
+        $op(P::Union{Poly,Number}, R::RatPoly) = $op(promote(P,R)...)
+    end
+end
 
 # compute the (m,n)-Pade approximant to the Polynomial with coefficients c.
 

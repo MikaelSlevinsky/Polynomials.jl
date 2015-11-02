@@ -52,7 +52,7 @@ sprint(show, pNULL)
 if VERSION >= v"0.4"
     @test pN(-.125) == 276.9609375
     @test pN([0.1, 0.2, 0.3]) == polyval(pN, [0.1, 0.2, 0.3])
-end 
+end
 
 @test poly([-1,-1]) == p3
 @test roots(p0)==roots(p1)==roots(pNULL)==[]
@@ -105,26 +105,26 @@ pcpy2 = copy(pcpy1)
 
 println("Test for the exponential function.")
 a = Poly(1.//convert(Vector{BigInt},gamma(BigFloat(1):BigFloat(17))),"x")
-PQexp = Pade(a,8,8)
-@test isapprox(convert(Float64, padeval(PQexp,1.0)), exp(1.0))
-@test isapprox(convert(Float64, padeval(PQexp,-1.0)), exp(-1.0))
+PQexp = pade(a,8,8)
+@test isapprox(convert(Float64, ratpolyval(PQexp,1.0)), exp(1.0))
+@test isapprox(convert(Float64, ratpolyval(PQexp,-1.0)), exp(-1.0))
 
 println("Test for the sine function.")
 b = Poly(convert(Vector{BigInt},sinpi((0:16)/2)).//convert(Vector{BigInt},gamma(BigFloat(1):BigFloat(17))),"x")
-PQsin = Pade(b,8,7)
-@test isapprox(convert(Float64, padeval(PQsin,1.0)), sin(1.0))
-@test isapprox(convert(Float64, padeval(PQsin,-1.0)),sin(-1.0))
+PQsin = pade(b,8,7)
+@test isapprox(convert(Float64, ratpolyval(PQsin,1.0)), sin(1.0))
+@test isapprox(convert(Float64, ratpolyval(PQsin,-1.0)),sin(-1.0))
 
 println("Test for the cosine function.")
 c = Poly(convert(Vector{BigInt},sinpi((1:17)/2)).//convert(Vector{BigInt},gamma(BigFloat(1):BigFloat(17))),"x")
-PQcos = Pade(c,8,8)
-@test isapprox(convert(Float64, padeval(PQcos,1.0)), cos(1.0))
-@test isapprox(convert(Float64, padeval(PQcos,-1.0)), cos(-1.0))
+PQcos = pade(c,8,8)
+@test isapprox(convert(Float64, ratpolyval(PQcos,1.0)), cos(1.0))
+@test isapprox(convert(Float64, ratpolyval(PQcos,-1.0)), cos(-1.0))
 
 println("Test for the summation of a factorially divergent series.")
 d = Poly(convert(Vector{BigInt},(-1).^(0:60).*gamma(BigFloat(1):BigFloat(61.0))).//1,"x")
-PQexpint = Pade(d,30,30)
-@compat println("The approximate sum of the divergent series is:  ", Float64(padeval(PQexpint,1.0)))
+PQexpint = pade(d,30,30)
+@compat println("The approximate sum of the divergent series is:  ", Float64(ratpolyval(PQexpint,1.0)))
 println("The approximate sum of the convergent series is: ",exp(1)*(-γ-sum([(-1).^k/k./gamma(k+1) for k=1:20])))
-@test isapprox(convert(Float64, padeval(PQexpint,1.0)),
+@test isapprox(convert(Float64, ratpolyval(PQexpint,1.0)),
                exp(1)*(-γ-sum([(-1).^k/k./gamma(k+1) for k=1:20])))

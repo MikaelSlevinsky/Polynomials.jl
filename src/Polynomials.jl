@@ -6,10 +6,10 @@ module Polynomials
 using Compat
 
 export Poly, polyval, polyint, polyder, poly, roots
-export RatPoly, rateval, degree
+export RatPoly, ratpolyval, pade, degree
 
 import Base: length, endof, getindex, setindex!, copy, zero, one, convert
-import Base: show, print, *, /, //, -, +, ==, divrem, rem, eltype
+import Base: show, print, *, /, //, -, +, ==, divrem, div, rem, eltype
 import Base: promote_rule
 if VERSION >= v"0.4"
     import Base.call
@@ -176,22 +176,20 @@ function -{T}(c::Number, p::Poly{T})
     end
 end
 
-function +{T,S}(p1::Poly{T}, p2::Poly{S})
+function +{T}(p1::Poly{T}, p2::Poly{T})
     @assert_variable(p1,p2)
     Poly([p1[i] + p2[i] for i = 0:max(length(p1),length(p2))], p1.var)
 end
-function -{T,S}(p1::Poly{T}, p2::Poly{S})
+function -{T}(p1::Poly{T}, p2::Poly{T})
     @assert_variable(p1,p2)
     Poly([p1[i] - p2[i] for i = 0:max(length(p1),length(p2))], p1.var)
 end
 
-
-function *{T,S}(p1::Poly{T}, p2::Poly{S})
+function *{T}(p1::Poly{T}, p2::Poly{T})
     @assert_variable(p1,p2)
-    R = promote_type(T,S)
     n = length(p1)-1
     m = length(p2)-1
-    a = zeros(R,m+n+1)
+    a = zeros(T,m+n+1)
 
     for i = 0:n
         for j = 0:m
@@ -215,7 +213,35 @@ function divrem{T, S}(num::Poly{T}, den::Poly{S})
     end
 
     aQ = zeros(R, deg)
-    aR = deepcopy(num.a)
+    aR = R[ num.a[i] for i = 1:n+1 ]
+    for i = n:-1:m
+        quot = aR[i+1] / den[m]
+        aQ[i-m+1] = quot
+        for j = 0:m
+            elem = den[j]*quot
+            aR[i-(m-j)+1] -= elem
+        end
+    end
+    pQ = Poly(aQ, num.var)
+    pR = Poly(aR, num.var)
+
+    return pQ, pR
+end
+function divrem{T<:Union{Rational,Integer}, S<:Union{Rational,Integer}}(num::Poly{T}, den::Poly{S})
+    @assert_variable(num, den)
+    m = length(den)-1
+    if m == 0 && den[0] == 0
+        throw(DivideError())
+    end
+    R = typeof(one(T)//one(S))
+    n = length(num)-1
+    deg = n-m+1
+    if deg <= 0
+        return convert(Poly{R}, zero(num)), convert(Poly{R}, num)
+    end
+
+    aQ = zeros(R, deg)
+    aR = R[ num.a[i] for i = 1:n+1 ]
     for i = n:-1:m
         quot = aR[i+1] / den[m]
         aQ[i-m+1] = quot
@@ -231,6 +257,7 @@ function divrem{T, S}(num::Poly{T}, den::Poly{S})
 end
 div(num::Poly, den::Poly) = divrem(num, den)[1]
 rem(num::Poly, den::Poly) = divrem(num, den)[2]
+/(num::Poly, den::Poly) = div(num, den)
 
 function ==(p1::Poly, p2::Poly)
     if p1.var != p2.var
@@ -353,6 +380,12 @@ function gcd{T, S}(a::Poly{T}, b::Poly{S})
     else
         s, r = divrem(a, b)
         return gcd(b, r)
+    end
+end
+
+for op in (:+,:-,:*)
+    @eval begin
+        $op{T, S}(p1::Poly{T}, p2::Poly{S}) = $op(promote(p1,p2)...)
     end
 end
 
