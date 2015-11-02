@@ -7,8 +7,8 @@ immutable RatPoly{T<:Number}
         d = gcd(p, q)
         pd = div(p, d)
         qd = div(q, d)
-        n = findfirst(qd)
-        qdn = qd[n]
+        n = findfirst(qd.a)
+        qdn = qd[n-1]
         if abs(qdn) ≤ 2eps(T)
             new(pd, qd, p.var)
         else
@@ -20,14 +20,13 @@ RatPoly{T<:Number}(p::Poly{T}, q::Poly{T}) = RatPoly{T}(p,q)
 RatPoly{T<:Integer}(p::Poly{T}, q::Poly{T}) = RatPoly{Rational{T}}(convert(Poly{Rational{T}},p),convert(Poly{Rational{T}},q))
 
 eltype{T}(::RatPoly{T}) = T
+eltype{T}(::Type{RatPoly{T}}) = T
 
 RatPoly{T<:Number,S<:Number}(p::Poly{T}, q::Poly{S}) = RatPoly(promote(p,q)...)
 
 
-convert{S,T<:Number}(::Type{RatPoly{S}},P::T) = convert(Poly{S},P)/convert(Poly{S},one(P))
-convert{S,T}(::Type{RatPoly{S}},P::Poly{T}) = convert(Poly{S},P)/convert(Poly{S},one(P))
-convert{S<:Integer,T<:Integer}(::Type{RatPoly{S}},P::T) = convert(Poly{S},P)//convert(Poly{S},one(P))
-convert{S<:Integer,T<:Integer}(::Type{RatPoly{S}},P::Poly{T}) = convert(Poly{S},P)//convert(Poly{S},one(P))
+convert{S,T<:Number}(::Type{RatPoly{S}},P::T) = convert(Poly{S},P)//convert(Poly{S},one(P))
+convert{S,T}(::Type{RatPoly{S}},P::Poly{T}) = convert(Poly{S},P)//convert(Poly{S},one(P))
 
 promote_rule{S,T<:Number}(::Type{RatPoly{S}},::Type{T}) = RatPoly{promote_type(S,T)}
 promote_rule{S,T}(::Type{RatPoly{S}},::Type{Poly{T}}) = RatPoly{promote_type(S,T)}
@@ -57,6 +56,7 @@ one{T}(::Type{RatPoly{T}}) = one(Poly{T})//one(Poly{T})
 -(R1::RatPoly,R2::RatPoly) = RatPoly(R1.p*R2.q-R2.p*R1.q,R1.q*R2.q)
 *(R1::RatPoly,R2::RatPoly) = RatPoly(R1.p*R2.p,R1.q*R2.q)
 /(R1::RatPoly,R2::RatPoly) = RatPoly(R1.p*R2.q,R1.q*R2.p)
+^(R::RatPoly,k::Int) = k == 0 ? one(R) : k ≥ 0 ? R*R^(k-1) : one(R)/R^(-k)
 
 for op in (:+,:-,:*,:/,://)
     @eval begin

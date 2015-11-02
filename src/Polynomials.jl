@@ -9,7 +9,7 @@ export Poly, polyval, polyint, polyder, poly, roots
 export RatPoly, ratpolyval, pade, degree
 
 import Base: length, endof, getindex, setindex!, copy, zero, one, convert
-import Base: show, print, *, /, //, -, +, ==, divrem, div, rem, eltype
+import Base: show, print, *, /, //, -, +, ==, ^, divrem, div, rem, eltype
 import Base: promote_rule
 if VERSION >= v"0.4"
     import Base.call
@@ -40,7 +40,9 @@ convert{T}(::Type{Poly{T}}, p::Poly) = Poly(convert(Vector{T}, p.a), p.var)
 convert{T, S<:Number}(::Type{Poly{T}}, x::S) = Poly(promote_type(T, S)[x])
 convert{T, S<:Number,n}(::Type{Poly{T}}, x::Array{S,n}) = map(el->convert(Poly{promote_type(T,S)},el),x)
 promote_rule{T, S}(::Type{Poly{T}}, ::Type{Poly{S}}) = Poly{promote_type(T, S)}
+promote_rule{T, S<:Number}(::Type{Poly{T}}, ::Type{S}) = Poly{promote_type(T, S)}
 eltype{T}(::Poly{T}) = T
+eltype{T}(::Type{Poly{T}}) = T
 
 length(p::Poly) = length(p.a)
 degree(p::Poly) = length(p)-1
